@@ -12,5 +12,5 @@ module purge
 module load cuda/11.6.2
 
 source venv/bin/activate
-python ./train.py train_data.csv --d_model 512 --nhead 8 --num_layers 8 --num_epochs 10
+python ./train.py ./data/train_data.csv --d_model 512 --nhead 8 --num_layers 8 --num_epochs 10
 deactivate
