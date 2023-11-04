@@ -9,7 +9,8 @@
 #SBATCH --mail-user=cs5526@nyu.edu
 
 module purge
-module load python/intel/3.8.6
 module load cuda/11.6.2
 
+source venv/bin/activate
 python ./train.py train_data.csv --d_model 512 --nhead 8 --num_layers 8 --num_epochs 10
+deactivate
