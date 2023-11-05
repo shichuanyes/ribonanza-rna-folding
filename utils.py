@@ -26,4 +26,4 @@ def train_test_split(
     rng = np.random.default_rng(seed=random_state)
     idx = rng.permutation(n)
     split = math.floor(n * test_size)
-    return df.iloc[idx[:split]], df.iloc[idx[split:]]
+    return df.iloc[idx[split:]], df.iloc[idx[:split]]
