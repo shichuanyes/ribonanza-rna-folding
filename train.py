@@ -2,14 +2,13 @@ import argparse
 
 import pandas as pd
 import torch
-from sklearn.model_selection import train_test_split
 from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from dataset import RNADataset
 from model import RNAModel
-from utils import nucleotides, mae
+from utils import nucleotides, mae, train_test_split
 
 
 def train(
