@@ -23,7 +23,6 @@ if __name__ == '__main__':
 
     print("Reading dataset...")
     df = pd.read_csv(args.data_path)
-    print()
 
     dataloader = DataLoader(RNAPredictDataset(df), batch_size=args.batch_size, shuffle=False)
 
@@ -32,15 +31,15 @@ if __name__ == '__main__':
     print("Loading model...")
     model = torch.load(args.model_path).to(device)
 
-    result = []
-    for inputs in tqdm(dataloader):
-        inputs = inputs.to(device)
+    predictions = np.empty(shape=(0, 2))
+
+    for inputs, seq_lengths in tqdm(dataloader):
+        inputs, seq_lengths = inputs.to(device), seq_lengths.to(device)
 
         with torch.no_grad():
             outputs = model(inputs)
-            outputs = torch.flatten(outputs, end_dim=-2)
-            result.append(outputs)
-    predictions = torch.cat(result, dim=0).cpu().numpy()
+            for i in range(outputs.size(0)):
+                predictions = np.append(predictions, outputs[i, :seq_lengths[i]].cpu().numpy(), axis=0)
 
     df = pd.DataFrame({
         'id': np.arange(predictions.shape[0]),

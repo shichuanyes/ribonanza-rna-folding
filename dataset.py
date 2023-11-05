@@ -38,7 +38,7 @@ class RNADataset(Dataset):
     def __getitem__(self, idx):
         input_seq = extract_input_seq(self.df, idx)
         label_seq = extract_label_seq(self.df, self.label_idx, idx)
-        return input_seq, label_seq, int(self.df['experiment_type'].iloc[idx] == 'DMS_MaP')
+        return input_seq, label_seq, len(self.df['sequence'].iloc[idx]), int(self.df['experiment_type'].iloc[idx] == 'DMS_MaP')
 
 
 class RNAPredictDataset(Dataset):
@@ -51,4 +51,4 @@ class RNAPredictDataset(Dataset):
     def __getitem__(self, idx):
         input_seq = extract_input_seq(self.df, idx)
 
-        return input_seq
+        return input_seq, len(self.df['sequence'].iloc[idx])

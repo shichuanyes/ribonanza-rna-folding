@@ -3,6 +3,7 @@ import math
 import numpy as np
 import pandas as pd
 import torch
+from torch import nn
 
 max_seq_length = 206
 nucleotides = 'ACGU'
@@ -13,8 +14,20 @@ def str_to_seq(s):
     return [mapping[c] for c in s]
 
 
-def mae(outputs, labels):
-    return torch.mean(torch.abs(outputs - labels))
+def mae(outputs, labels, seq_lengths):
+    loss = 0.0
+    se = torch.abs(outputs - labels)
+    for i in range(outputs.size(0)):
+        loss += torch.sum(se[i, :seq_lengths[i]])
+    return loss / seq_lengths.sum()
+
+
+def mse(outputs, labels, seq_lengths):
+    loss = 0.0
+    se = (outputs - labels) ** 2
+    for i in range(outputs.size(0)):
+        loss += torch.sum(se[i, :seq_lengths[i]])
+    return loss / seq_lengths.sum()
 
 
 def train_test_split(

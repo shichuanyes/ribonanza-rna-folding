@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from dataset import RNADataset
 from model import RNAModel
-from utils import nucleotides, mae, train_test_split
+from utils import nucleotides, mae, train_test_split, mse
 
 
 def train(
@@ -21,12 +21,13 @@ def train(
 ):
     for epoch in tqdm(range(num_epochs)):
         model.train()
-        for inputs, labels, is_dmp in dataloader:
-            inputs, labels, is_dmp = inputs.to(device), labels.to(device), is_dmp.to(device)
+        for inputs, labels, seq_lengths, is_dmp in dataloader:
+            inputs, labels, seq_lengths, is_dmp = inputs.to(device), labels.to(device), seq_lengths.to(device), is_dmp.to(device)
 
             optimizer.zero_grad()
             outputs = model(inputs)
-            loss = criterion(outputs[torch.arange(outputs.size(0)), :, is_dmp], labels)
+            outputs = outputs[torch.arange(outputs.size(0)), :, is_dmp]
+            loss = criterion(outputs, labels, seq_lengths)
             loss.backward()
             optimizer.step()
 
@@ -39,13 +40,13 @@ def validate(
 ) -> float:
     model.eval()
     loss = 0.0
-    for inputs, labels, is_dmp in tqdm(dataloader):
-        inputs, labels, is_dmp = inputs.to(device), labels.to(device), is_dmp.to(device)
+    for inputs, labels, seq_lengths, is_dmp in tqdm(dataloader):
+        inputs, labels, seq_lengths, is_dmp = inputs.to(device), labels.to(device), seq_lengths.to(device), is_dmp.to(device)
         with torch.no_grad():
             outputs = model(inputs)
             outputs = outputs[torch.arange(outputs.size(0)), :, is_dmp]
             outputs = torch.clamp(outputs, min=0.0, max=1.0)
-            loss += criterion(outputs, labels).item()
+            loss += criterion(outputs, labels, seq_lengths).item()
     return loss / len(dataloader)
 
 
@@ -90,13 +91,12 @@ if __name__ == '__main__':
     print(args)
     train(
         model=model,
-        criterion=nn.MSELoss(),
+        criterion=mse,
         optimizer=torch.optim.AdamW(model.parameters(), lr=args.lr),
         dataloader=train_loader,
         num_epochs=args.num_epochs,
         device=device
     )
-    print()
 
     print("Running on validation set...")
     score = validate(
