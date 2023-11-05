@@ -43,7 +43,9 @@ def validate(
         inputs, labels, is_dmp = inputs.to(device), labels.to(device), is_dmp.to(device)
         with torch.no_grad():
             outputs = model(inputs)
-            loss += criterion(outputs[torch.arange(outputs.size(0)), :, is_dmp], labels).item()
+            outputs = outputs[torch.arange(outputs.size(0)), :, is_dmp]
+            outputs = torch.clamp(outputs, min=0.0, max=1.0)
+            loss += criterion(outputs, labels).item()
     return loss / len(dataloader)
 
 
