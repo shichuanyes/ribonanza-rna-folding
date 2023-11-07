@@ -3,6 +3,7 @@ import argparse
 import pandas as pd
 import torch
 from torch import nn
+from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -56,6 +57,7 @@ def validate(
             count += torch.sum(~ mask)
 
             outputs = model(sequences, mask)
+            outputs = F.pad(outputs, (0, 0, 0, mask.size(1) - outputs.size(1)))  # Because PyTorch 1.13 is stupid
             outputs = outputs[torch.arange(outputs.size(0)), :, experiment_types]
             outputs = torch.clamp(outputs, min=0.0, max=1.0)
 
