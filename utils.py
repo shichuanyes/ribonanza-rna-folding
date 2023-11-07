@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pandas as pd
 import torch
-from torch import nn
+from torch.nn import functional as F
 
 max_seq_length = 206
 nucleotides = 'ACGU'
@@ -14,20 +14,12 @@ def str_to_seq(s):
     return [mapping[c] for c in s]
 
 
-def mae(outputs, labels, seq_lengths):
-    loss = 0.0
-    se = torch.abs(outputs - labels)
-    for i in range(outputs.size(0)):
-        loss += torch.sum(se[i, :seq_lengths[i]])
-    return loss / seq_lengths.sum()
+def str_to_tensor(s: str):
+    sequence = str_to_seq(s)
+    sequence = torch.LongTensor(sequence)
+    sequence = F.one_hot(sequence, num_classes=len(nucleotides))
 
-
-def mse(outputs, labels, seq_lengths):
-    loss = 0.0
-    se = (outputs - labels) ** 2
-    for i in range(outputs.size(0)):
-        loss += torch.sum(se[i, :seq_lengths[i]])
-    return loss / seq_lengths.sum()
+    return sequence.float()
 
 
 def train_test_split(

@@ -1,54 +1,83 @@
+from typing import List
+
+import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
+from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
 
-from utils import str_to_seq, nucleotides, max_seq_length
+from utils import str_to_seq, nucleotides, max_seq_length, str_to_tensor
 
-
-def extract_input_seq(df: pd.DataFrame, idx):
-    input_seq = df['sequence'].iloc[idx]
-    input_seq = str_to_seq(input_seq)
-    input_seq = torch.LongTensor(input_seq)
-    input_seq = F.one_hot(input_seq, num_classes=len(nucleotides))
-    input_seq = input_seq.float()
-    input_seq = F.pad(input_seq, pad=(0, 0, 0, max_seq_length - input_seq.size(0)))
-
-    return input_seq
-
-
-def extract_label_seq(df: pd.DataFrame, label_idx, idx):
-    label_seq = df.iloc[idx, label_idx]
-    label_seq = torch.FloatTensor(label_seq.to_numpy(dtype=float))
-    label_seq = torch.nan_to_num(label_seq)
-    label_seq = F.pad(label_seq, pad=(0, max_seq_length - label_seq.size(0)))
-
-    return label_seq
 
 
 class RNADataset(Dataset):
-    def __init__(self, df):
+    def __init__(self, df: pd.DataFrame):
         self.df = df
-        self.label_idx = [idx for idx, column in enumerate(self.df.columns) if
-                          not column.startswith('reactivity_error') and column.startswith('reactivity')]
+        self.reactivity_columns = [
+            column for column in self.df.columns
+            if not column.startswith('reactivity_error') and column.startswith('reactivity')
+        ]
+        self.experiment_mapping = {
+            'DMS_MaP': 0,
+            '2A3_MaP': 1
+        }
 
     def __len__(self):
         return len(self.df)
 
-    def __getitem__(self, idx):
-        input_seq = extract_input_seq(self.df, idx)
-        label_seq = extract_label_seq(self.df, self.label_idx, idx)
-        return input_seq, label_seq, len(self.df['sequence'].iloc[idx]), int(self.df['experiment_type'].iloc[idx] == 'DMS_MaP')
+    def __getitem__(self, idx: int):
+        sequence = self.df['sequence'].iloc[idx]
+        sequence = str_to_tensor(sequence)
+        sequence = pad_sequence(sequence, batch_first=True)
+        sequence = F.pad(sequence, (0, 0, 0, len(self.reactivity_columns) - sequence.size(0)))
+
+        reactivity = self.df[self.reactivity_columns].iloc[idx].to_numpy()
+        reactivity = torch.FloatTensor(reactivity)
+        reactivity = torch.nan_to_num(reactivity)
+
+        experiment_type = self.df['experiment_type'].iloc[idx]
+        experiment_type = self.experiment_mapping[experiment_type]
+
+        return sequence, reactivity, experiment_type
+
+    def __getitems__(self, indices: List[int]):
+        sequences = self.df['sequence'].iloc[indices]
+        sequences = [str_to_tensor(sequence) for sequence in sequences]
+        sequences = pad_sequence(sequences, batch_first=True)
+        sequences = F.pad(sequences, (0, 0, 0, len(self.reactivity_columns) - sequences.size(1)))
+
+        reactivities = self.df[self.reactivity_columns].iloc[indices].to_numpy()
+        reactivities = torch.FloatTensor(reactivities)
+        reactivities = torch.nan_to_num(reactivities)
+
+        experiment_types = self.df['experiment_type'].iloc[indices]
+        experiment_types = experiment_types.map(self.experiment_mapping).to_numpy()
+
+        return list(zip(sequences, reactivities, experiment_types))
 
 
 class RNAPredictDataset(Dataset):
-    def __init__(self, df):
+    def __init__(self, df: pd.DataFrame):
         self.df = df
+        self.max_seq_length = df['sequence'].str.len().max()
+        print(max_seq_length)
 
     def __len__(self):
         return len(self.df)
 
-    def __getitem__(self, idx):
-        input_seq = extract_input_seq(self.df, idx)
+    def __getitem__(self, idx: int):
+        sequence = self.df['sequence'].iloc[idx]
+        sequence = str_to_tensor(sequence)
+        sequence = F.pad(sequence, (0, 0, 0, self.max_seq_length - sequence.size(0)))
 
-        return input_seq, len(self.df['sequence'].iloc[idx])
+        return sequence
+
+    def __getitems__(self, indices: List[int]):
+        sequences = self.df['sequence'].iloc[indices]
+        sequences = [str_to_tensor(sequence) for sequence in sequences]
+        sequences = pad_sequence(sequences, batch_first=True)
+        sequences = F.pad(sequences, (0, 0, 0, self.max_seq_length - sequences.size(1)))
+
+        return list(sequences)
+
