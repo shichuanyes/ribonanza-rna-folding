@@ -121,7 +121,7 @@ if __name__ == '__main__':
     score = validate(
         model=model,
         criterion=nn.L1Loss(reduction='none'),
-        dataloader=train_loader,
+        dataloader=val_loader,
         device=device
     )
     print(f"Validation score: {score}")
