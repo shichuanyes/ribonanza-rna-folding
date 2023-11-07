@@ -50,7 +50,7 @@ if __name__ == '__main__':
 
     df = pd.DataFrame({
         'id': np.arange(df['id_max'].max() + 1),
-        'reactivity_DMS_MaP': predictions[:, 1],
-        'reactivity_2A3_MaP': predictions[:, 0]
+        'reactivity_DMS_MaP': predictions[:, 0],
+        'reactivity_2A3_MaP': predictions[:, 1]
     })
     df.to_csv(args.save_path, index=False)
