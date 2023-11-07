@@ -1,13 +1,12 @@
 from typing import List
 
-import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
 
-from utils import str_to_seq, nucleotides, max_seq_length, str_to_tensor
+from utils import str_to_tensor
 
 
 
@@ -29,7 +28,6 @@ class RNADataset(Dataset):
     def __getitem__(self, idx: int):
         sequence = self.df['sequence'].iloc[idx]
         sequence = str_to_tensor(sequence)
-        sequence = pad_sequence(sequence, batch_first=True)
         sequence = F.pad(sequence, (0, 0, 0, len(self.reactivity_columns) - sequence.size(0)))
 
         reactivity = self.df[self.reactivity_columns].iloc[idx].to_numpy()
@@ -61,7 +59,6 @@ class RNAPredictDataset(Dataset):
     def __init__(self, df: pd.DataFrame):
         self.df = df
         self.max_seq_length = df['sequence'].str.len().max()
-        print(max_seq_length)
 
     def __len__(self):
         return len(self.df)

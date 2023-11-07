@@ -5,7 +5,6 @@ import pandas as pd
 import torch
 from torch.nn import functional as F
 
-max_seq_length = 206
 nucleotides = 'ACGU'
 
 
