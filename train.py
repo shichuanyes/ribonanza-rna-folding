@@ -19,9 +19,9 @@ def train(
         num_epochs: int,
         device: torch.device
 ):
-    for epoch in tqdm(range(num_epochs)):
+    for epoch in tqdm(range(num_epochs), desc='Epochs', position=0):
         model.train()
-        for sequences, reactivities, experiment_types in dataloader:
+        for sequences, reactivities, experiment_types in tqdm(dataloader, desc='Batches', position=1, leave=False):
             sequences, reactivities, experiment_types = sequences.to(device), reactivities.to(device), experiment_types.to(device)
 
             mask = sequences.sum(dim=-1) == 0
