@@ -31,18 +31,25 @@ if __name__ == '__main__':
     print("Loading model...")
     model = torch.load(args.model_path).to(device)
 
-    predictions = np.empty(shape=(0, 2))
+    predictions = np.empty(shape=(df['id_max'].max() + 1, 2))
 
-    for inputs, seq_lengths in tqdm(dataloader):
-        inputs, seq_lengths = inputs.to(device), seq_lengths.to(device)
+    model.eval()
+    with torch.inference_mode():
+        curr = 0
+        for sequences in tqdm(dataloader):
+            sequences = sequences.to(device)
 
-        with torch.no_grad():
-            outputs = model(inputs)
-            for i in range(outputs.size(0)):
-                predictions = np.append(predictions, outputs[i, :seq_lengths[i]].cpu().numpy(), axis=0)
+            mask = sequences.sum(dim=-1) == 0
+
+            outputs = model(sequences, mask)
+            outputs = outputs[~ mask]
+
+            predictions[curr:curr + outputs.size(0), :] = outputs.cpu().numpy()
+
+            curr += outputs.size(0)
 
     df = pd.DataFrame({
-        'id': np.arange(predictions.shape[0]),
+        'id': np.arange(df['id_max'].max() + 1),
         'reactivity_DMS_MaP': predictions[:, 1],
         'reactivity_2A3_MaP': predictions[:, 0]
     })

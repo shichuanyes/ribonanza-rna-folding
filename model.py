@@ -39,10 +39,10 @@ class RNAModel(nn.Module):
         )
         self.linear = nn.Linear(d_model, 2)
 
-    def forward(self, x):
+    def forward(self, x, mask):
         x = self.conv(x.transpose(-1, -2)).transpose(-1, -2)
         x = self.pe(x)
-        x = self.te(x)
+        x = self.te(x, src_key_padding_mask=mask)
         x = self.linear(x)
 
         return x.squeeze()

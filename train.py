@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from dataset import RNADataset
 from model import RNAModel
-from utils import nucleotides, mae, train_test_split, mse
+from utils import nucleotides, train_test_split
 
 
 def train(
@@ -21,13 +21,19 @@ def train(
 ):
     for epoch in tqdm(range(num_epochs)):
         model.train()
-        for inputs, labels, seq_lengths, is_dmp in dataloader:
-            inputs, labels, seq_lengths, is_dmp = inputs.to(device), labels.to(device), seq_lengths.to(device), is_dmp.to(device)
+        for sequences, reactivities, experiment_types in dataloader:
+            sequences, reactivities, experiment_types = sequences.to(device), reactivities.to(device), experiment_types.to(device)
+
+            mask = sequences.sum(dim=-1) == 0
 
             optimizer.zero_grad()
-            outputs = model(inputs)
-            outputs = outputs[torch.arange(outputs.size(0)), :, is_dmp]
-            loss = criterion(outputs, labels, seq_lengths)
+
+            outputs = model(sequences, mask)
+            outputs = outputs[torch.arange(outputs.size(0)), :, experiment_types]
+
+            loss = criterion(outputs, reactivities)
+            loss = torch.mean(loss[~ mask])
+            # loss = torch.sum(loss * (~ mask)) / torch.sum(~ mask)
             loss.backward()
             optimizer.step()
 
@@ -39,15 +45,24 @@ def validate(
         device: torch.device
 ) -> float:
     model.eval()
-    loss = 0.0
-    for inputs, labels, seq_lengths, is_dmp in tqdm(dataloader):
-        inputs, labels, seq_lengths, is_dmp = inputs.to(device), labels.to(device), seq_lengths.to(device), is_dmp.to(device)
-        with torch.no_grad():
-            outputs = model(inputs)
-            outputs = outputs[torch.arange(outputs.size(0)), :, is_dmp]
+    with torch.inference_mode():
+        loss = 0.0
+        count = 0
+        for sequences, reactivities, experiment_types in tqdm(dataloader):
+            sequences, reactivities, experiment_types = sequences.to(device), reactivities.to(device), experiment_types.to(device)
+
+            mask = sequences.sum(dim=-1) == 0
+
+            count += torch.sum(~ mask)
+
+            outputs = model(sequences, mask)
+            outputs = outputs[torch.arange(outputs.size(0)), :, experiment_types]
             outputs = torch.clamp(outputs, min=0.0, max=1.0)
-            loss += criterion(outputs, labels, seq_lengths).item()
-    return loss / len(dataloader)
+
+            # loss += torch.sum(criterion(outputs, reactivities) * (~ mask))
+            loss += torch.sum(criterion(outputs, reactivities)[~ mask])
+
+    return loss / count
 
 
 if __name__ == '__main__':
@@ -91,7 +106,7 @@ if __name__ == '__main__':
     print(args)
     train(
         model=model,
-        criterion=mse,
+        criterion=nn.MSELoss(reduction='none'),
         optimizer=torch.optim.AdamW(model.parameters(), lr=args.lr),
         dataloader=train_loader,
         num_epochs=args.num_epochs,
@@ -101,7 +116,7 @@ if __name__ == '__main__':
     print("Running on validation set...")
     score = validate(
         model=model,
-        criterion=mae,
+        criterion=nn.L1Loss(reduction='none'),
         dataloader=train_loader,
         device=device
     )
