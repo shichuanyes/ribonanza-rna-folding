@@ -113,6 +113,10 @@ if __name__ == '__main__':
         device=device
     )
 
+    print("Saving model...")
+    torch.save(model, args.save_path)
+    print(f"Model saved to {args.save_path}")
+
     print("Running on validation set...")
     score = validate(
         model=model,
@@ -121,7 +125,3 @@ if __name__ == '__main__':
         device=device
     )
     print(f"Validation score: {score}")
-
-    print("Saving model...")
-    torch.save(model, args.save_path)
-    print(f"Model saved to {args.save_path}")
