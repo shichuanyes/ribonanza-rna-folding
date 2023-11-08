@@ -76,11 +76,16 @@ if __name__ == '__main__':
     parser.add_argument('--d_model', type=int, default=128)
     parser.add_argument('--nhead', type=int, default=4)
     parser.add_argument('--num_layers', type=int, default=4)
+    parser.add_argument('--kernel_size', type=int, default=3)
     parser.add_argument('--dropout', type=float, default=0.1)
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--num_epochs', type=int, default=10)
 
     args = parser.parse_args()
+
+    assert args.kernel_size % 2 == 1
+    assert args.d_model % args.nhead == 0
+    assert 0.0 <= args.dropout < 1.0
 
     print("Reading training set...")
     df = pd.read_csv(args.train_path)
@@ -98,6 +103,7 @@ if __name__ == '__main__':
         d_model=args.d_model,
         nhead=args.nhead,
         num_layers=args.num_layers,
+        kernel_size=args.kernel_size,
         dropout=args.dropout
     ).to(device)
 

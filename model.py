@@ -28,10 +28,10 @@ class PositionalEncoding(nn.Module):
 
 
 class RNAModel(nn.Module):
-    def __init__(self, embed_dim, d_model, nhead, num_layers, dropout):
+    def __init__(self, embed_dim, d_model, nhead, num_layers, kernel_size, dropout):
         super().__init__()
 
-        self.conv = nn.Conv1d(embed_dim, d_model, kernel_size=3, padding=1)
+        self.conv = nn.Conv1d(embed_dim, d_model, kernel_size=kernel_size, padding=(kernel_size - 1) // 2)
         self.pe = PositionalEncoding(d_model=d_model, dropout=dropout)
         self.te = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, dropout=dropout, batch_first=True),
