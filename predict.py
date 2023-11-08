@@ -43,7 +43,6 @@ if __name__ == '__main__':
             mask = sequences.sum(dim=-1) == 0
 
             outputs = model(sequences, mask)
-            outputs = F.pad(outputs, (0, 0, 0, mask.size(1) - outputs.size(1)))  # Because PyTorch 1.13 is stupid
             outputs = outputs[~ mask]
 
             predictions[curr:curr + outputs.size(0), :] = outputs.cpu().numpy()

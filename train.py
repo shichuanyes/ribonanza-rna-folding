@@ -20,8 +20,8 @@ def train(
         num_epochs: int,
         device: torch.device
 ):
+    model.train()
     for epoch in tqdm(range(num_epochs), desc='Epochs', position=0):
-        model.train()
         for sequences, reactivities, experiment_types in tqdm(dataloader, desc='Batches', position=1, leave=False):
             sequences, reactivities, experiment_types = sequences.to(device), reactivities.to(device), experiment_types.to(device)
 
@@ -34,7 +34,6 @@ def train(
 
             loss = criterion(outputs, reactivities)
             loss = torch.mean(loss[~ mask])
-            # loss = torch.sum(loss * (~ mask)) / torch.sum(~ mask)
             loss.backward()
             optimizer.step()
 
@@ -57,11 +56,9 @@ def validate(
             count += torch.sum(~ mask)
 
             outputs = model(sequences, mask)
-            outputs = F.pad(outputs, (0, 0, 0, mask.size(1) - outputs.size(1)))  # Because PyTorch 1.13 is stupid
             outputs = outputs[torch.arange(outputs.size(0)), :, experiment_types]
             outputs = torch.clamp(outputs, min=0.0, max=1.0)
 
-            # loss += torch.sum(criterion(outputs, reactivities) * (~ mask))
             loss += torch.sum(criterion(outputs, reactivities)[~ mask])
 
     return loss / count
