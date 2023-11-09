@@ -3,7 +3,6 @@ import argparse
 import pandas as pd
 import torch
 from torch import nn
-from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -12,30 +11,29 @@ from model import RNAModel
 from utils import nucleotides, train_test_split
 
 
-def train(
+def train_step(
         model: nn.Module,
         optimizer: torch.optim.Optimizer,
         criterion: callable,
-        dataloader: DataLoader,
-        num_epochs: int,
-        device: torch.device
+
+        sequences: torch.Tensor,
+        reactivities: torch.Tensor,
+        experiment_types: torch.Tensor,
 ):
-    model.train()
-    for epoch in tqdm(range(num_epochs), desc='Epochs', position=0):
-        for sequences, reactivities, experiment_types in tqdm(dataloader, desc='Batches', position=1, leave=False):
-            sequences, reactivities, experiment_types = sequences.to(device), reactivities.to(device), experiment_types.to(device)
+    mask = sequences.sum(dim=-1) == 0
 
-            mask = sequences.sum(dim=-1) == 0
+    optimizer.zero_grad()
 
-            optimizer.zero_grad()
+    outputs = model(sequences, mask)
+    outputs = outputs[torch.arange(outputs.size(0)), :, experiment_types]
 
-            outputs = model(sequences, mask)
-            outputs = outputs[torch.arange(outputs.size(0)), :, experiment_types]
+    loss = criterion(outputs, reactivities)
+    loss = torch.mean(loss[~ mask])
+    loss.backward()
+    optimizer.step()
 
-            loss = criterion(outputs, reactivities)
-            loss = torch.mean(loss[~ mask])
-            loss.backward()
-            optimizer.step()
+    return loss.item()
+
 
 
 def validate(
@@ -48,7 +46,7 @@ def validate(
     with torch.inference_mode():
         loss = 0.0
         count = 0
-        for sequences, reactivities, experiment_types in tqdm(dataloader):
+        for sequences, reactivities, experiment_types in tqdm(dataloader, desc='Validation', leave=False):
             sequences, reactivities, experiment_types = sequences.to(device), reactivities.to(device), experiment_types.to(device)
 
             mask = sequences.sum(dim=-1) == 0
@@ -109,24 +107,34 @@ if __name__ == '__main__':
 
     print(f"Started training on {device}. Current parameters:")
     print(args)
-    train(
-        model=model,
-        criterion=nn.MSELoss(reduction='none'),
-        optimizer=torch.optim.AdamW(model.parameters(), lr=args.lr),
-        dataloader=train_loader,
-        num_epochs=args.num_epochs,
-        device=device
-    )
 
+    criterion = nn.MSELoss(reduction='none')
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    dataloader = train_loader
+
+    for epoch in tqdm(range(args.num_epochs)):
+        model.train()
+        for sequences, reactivities, experiment_types in tqdm(dataloader, desc='Train', leave=False):
+            sequences, reactivities, experiment_types = sequences.to(device), reactivities.to(device), experiment_types.to(device)
+            train_step(
+                model=model,
+                criterion=criterion,
+                optimizer=optimizer,
+                sequences=sequences,
+                reactivities=reactivities,
+                experiment_types=experiment_types
+            )
+
+        score = validate(
+            model=model,
+            criterion=nn.L1Loss(reduction='none'),
+            dataloader=val_loader,
+            device=device
+        )
+        print()
+        print(f"Epoch: {epoch} of {args.num_epochs}: Validation MAE={score}")
+
+    print()
     print("Saving model...")
     torch.save(model, args.save_path)
     print(f"Model saved to {args.save_path}")
-
-    print("Running on validation set...")
-    score = validate(
-        model=model,
-        criterion=nn.L1Loss(reduction='none'),
-        dataloader=val_loader,
-        device=device
-    )
-    print(f"Validation score: {score}")
