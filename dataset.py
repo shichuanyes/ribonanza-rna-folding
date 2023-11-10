@@ -1,5 +1,7 @@
+import math
 from typing import List
 
+import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
@@ -7,7 +9,6 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
 
 from utils import str_to_tensor
-
 
 
 class RNADataset(Dataset):
@@ -60,6 +61,9 @@ class RNAPredictDataset(Dataset):
         self.df = df
         self.max_seq_length = df['sequence'].str.len().max()
 
+        if 'flip' not in self.df.columns:
+            self.df['flip'] = pd.Series([False for _ in range(len(self.df))])
+
     def __len__(self):
         return len(self.df)
 
@@ -68,7 +72,9 @@ class RNAPredictDataset(Dataset):
         sequence = str_to_tensor(sequence)
         sequence = F.pad(sequence, (0, 0, 0, self.max_seq_length - sequence.size(0)))
 
-        return sequence
+        flip = self.df['flip'].iloc[idx]
+
+        return sequence, flip
 
     def __getitems__(self, indices: List[int]):
         sequences = self.df['sequence'].iloc[indices]
@@ -76,5 +82,6 @@ class RNAPredictDataset(Dataset):
         sequences = pad_sequence(sequences, batch_first=True)
         sequences = F.pad(sequences, (0, 0, 0, self.max_seq_length - sequences.size(1)))
 
-        return list(sequences)
+        flips = self.df['flip'].iloc[indices]
 
+        return list(zip(sequences, flips))

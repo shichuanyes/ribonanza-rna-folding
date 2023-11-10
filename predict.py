@@ -36,17 +36,23 @@ if __name__ == '__main__':
     model.eval()
     with torch.inference_mode():
         curr = 0
-        for sequences in tqdm(dataloader):
+        for sequences, flips in tqdm(dataloader):
             sequences = sequences.to(device)
 
             mask = sequences.sum(dim=-1) == 0
 
             outputs = model(sequences, mask)
+
+            outputs = outputs.cpu().numpy()
+            mask = mask.cpu().numpy()
+
+            outputs[flips] = outputs[flips][:, ::-1]
+            mask[flips] = mask[flips][:, ::-1]
+
             outputs = outputs[~ mask]
+            predictions[curr:curr + outputs.shape[0], :] = outputs
 
-            predictions[curr:curr + outputs.size(0), :] = outputs.cpu().numpy()
-
-            curr += outputs.size(0)
+            curr += outputs.shape[0]
 
     df = pd.DataFrame({
         'id': np.arange(df['id_max'].max() + 1),
