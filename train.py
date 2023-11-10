@@ -132,7 +132,7 @@ if __name__ == '__main__':
             device=device
         )
         print()
-        print(f"Epoch: {epoch} of {args.num_epochs}: Validation MAE={score}")
+        print(f"Epoch: {epoch + 1} of {args.num_epochs}: Validation MAE={score}")
 
     print()
     print("Saving model...")
