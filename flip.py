@@ -36,10 +36,11 @@ if __name__ == '__main__':
     print("Flipping sequences...")
     df.loc[flip_indices, 'sequence'] = df.loc[flip_indices, 'sequence'].str[::-1]
 
-    print("Flipping reactivities...")
-    for flip_index in tqdm(flip_indices):
-        flip_columns = reactivity_columns[:len(df.loc[flip_index, 'sequence'])]
-        df.loc[flip_index, flip_columns] = df.loc[flip_index, flip_columns].to_numpy()[::-1]
+    if len(reactivity_columns) > 0:
+        print("Flipping reactivities...")
+        for flip_index in tqdm(flip_indices):
+            flip_columns = reactivity_columns[:len(df.loc[flip_index, 'sequence'])]
+            df.loc[flip_index, flip_columns] = df.loc[flip_index, flip_columns].to_numpy()[::-1]
 
     df.loc[flip_indices, 'flip'] = ~ df.loc[flip_indices, 'flip']
 
