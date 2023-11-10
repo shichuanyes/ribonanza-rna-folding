@@ -28,13 +28,14 @@ def train_step(
     outputs = model(sequences, mask)
     outputs = outputs[torch.arange(outputs.size(0)), :, experiment_types]
 
-    loss = criterion(outputs, reactivities)
-    loss = torch.mean(loss[~ mask])
+    nan_mask = torch.isnan(reactivities)
+
+    loss = criterion(outputs[~ (mask | nan_mask)], reactivities[~ (mask | nan_mask)])
+    loss = torch.mean(loss)
     loss.backward()
     optimizer.step()
 
     return loss.item()
-
 
 
 def validate(
@@ -58,7 +59,7 @@ def validate(
             outputs = outputs[torch.arange(outputs.size(0)), :, experiment_types]
             outputs = torch.clamp(outputs, min=0.0, max=1.0)
 
-            loss += torch.sum(criterion(outputs, reactivities)[~ mask])
+            loss += torch.nansum(criterion(outputs, reactivities)[~ mask])
 
     return loss / count
 
@@ -116,7 +117,8 @@ if __name__ == '__main__':
     for epoch in tqdm(range(args.num_epochs)):
         model.train()
         for sequences, reactivities, experiment_types in tqdm(dataloader, desc='Train', leave=False):
-            sequences, reactivities, experiment_types = sequences.to(device), reactivities.to(device), experiment_types.to(device)
+            sequences, reactivities, experiment_types = sequences.to(device), reactivities.to(
+                device), experiment_types.to(device)
             train_step(
                 model=model,
                 criterion=criterion,

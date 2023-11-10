@@ -1,7 +1,5 @@
-import math
 from typing import List
 
-import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
@@ -33,7 +31,7 @@ class RNADataset(Dataset):
 
         reactivity = self.df[self.reactivity_columns].iloc[idx].to_numpy()
         reactivity = torch.FloatTensor(reactivity)
-        reactivity = torch.nan_to_num(reactivity)
+        # reactivity = torch.nan_to_num(reactivity)
 
         experiment_type = self.df['experiment_type'].iloc[idx]
         experiment_type = self.experiment_mapping[experiment_type]
@@ -48,7 +46,7 @@ class RNADataset(Dataset):
 
         reactivities = self.df[self.reactivity_columns].iloc[indices].to_numpy()
         reactivities = torch.FloatTensor(reactivities)
-        reactivities = torch.nan_to_num(reactivities)
+        # reactivities = torch.nan_to_num(reactivities)
 
         experiment_types = self.df['experiment_type'].iloc[indices]
         experiment_types = experiment_types.map(self.experiment_mapping).to_numpy()
