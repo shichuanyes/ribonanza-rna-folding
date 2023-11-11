@@ -1,5 +1,4 @@
 import argparse
-import math
 
 import numpy as np
 import pandas as pd
@@ -29,18 +28,21 @@ if __name__ == '__main__':
 
     if 'flip' not in df.columns:
         df['flip'] = pd.Series([False for _ in range(n)])
+
     rng = np.random.default_rng(seed=args.seed)
-    indices = rng.permutation(df.index)
-    flip_indices = indices[:math.ceil(n * args.flip_ratio)]
+    mask = rng.random(size=len(df)) > 0.5
+    flip_indices = df.index[mask]
 
     print("Flipping sequences...")
     df.loc[flip_indices, 'sequence'] = df.loc[flip_indices, 'sequence'].str[::-1]
 
     if len(reactivity_columns) > 0:
         print("Flipping reactivities...")
-        for flip_index in tqdm(flip_indices):
-            flip_columns = reactivity_columns[:len(df.loc[flip_index, 'sequence'])]
-            df.loc[flip_index, flip_columns] = df.loc[flip_index, flip_columns].to_numpy()[::-1]
+        lengths = df.loc[flip_indices, 'sequence'].str.len().to_numpy()
+        reactivities = df.loc[flip_indices, reactivity_columns].to_numpy()
+        for i in tqdm(range(reactivities.shape[0])):
+            reactivities[i, :lengths[i]] = reactivities[i, :lengths[i]][::-1]
+        df.loc[flip_indices, reactivity_columns] = reactivities
 
     df.loc[flip_indices, 'flip'] = ~ df.loc[flip_indices, 'flip']
 
