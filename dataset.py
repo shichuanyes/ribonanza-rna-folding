@@ -38,6 +38,7 @@ class RNADataset(Dataset):
             self,
             df: pd.DataFrame,
             flip_ratio: float = 0.5,
+            fill_na: bool = False,
             seed: int = 283
     ):
         self.df = df
@@ -49,6 +50,11 @@ class RNADataset(Dataset):
             'DMS_MaP': 0,
             '2A3_MaP': 1
         }
+
+        if fill_na:
+            for reactivity_column in self.reactivity_columns:
+                error_column = reactivity_column.replace('reactivity', 'reactivity_error')
+                self.df.loc[self.df[reactivity_column] < self.df[error_column] * 1.5, reactivity_column] = np.nan
         flip(df, [self.reactivity_columns], flip_ratio, seed)
 
     def __len__(self):

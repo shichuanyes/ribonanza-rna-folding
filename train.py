@@ -93,7 +93,7 @@ if __name__ == '__main__':
 
     train_df, val_df = train_test_split(df, test_size=0.2, random_state=283)
 
-    train_loader = DataLoader(RNADataset(train_df), batch_size=args.batch_size, shuffle=True)
+    train_loader = DataLoader(RNADataset(train_df, fill_na=True), batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(RNADataset(val_df), batch_size=args.batch_size, shuffle=False)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
