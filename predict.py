@@ -22,6 +22,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    assert 0.0 <= args.flip_ratio <= 1.0
+
     print("Reading dataset...")
     df = pd.read_csv(args.data_path)
 
