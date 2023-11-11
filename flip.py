@@ -30,7 +30,7 @@ if __name__ == '__main__':
         df['flip'] = pd.Series([False for _ in range(n)])
 
     rng = np.random.default_rng(seed=args.seed)
-    mask = rng.random(size=len(df)) > 0.5
+    mask = rng.random(size=len(df)) > args.flip_ratio
     flip_indices = df.index[mask]
 
     print("Flipping sequences...")
