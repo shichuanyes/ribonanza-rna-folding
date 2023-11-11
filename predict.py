@@ -18,13 +18,14 @@ if __name__ == '__main__':
     parser.add_argument('model_path', nargs='?', default='model.pt')
     parser.add_argument('save_path', nargs='?', default='predictions.csv')
     parser.add_argument('--batch_size', type=int, default=128)
+    parser.add_argument('--flip_ratio', type=float, default=0.5)
 
     args = parser.parse_args()
 
     print("Reading dataset...")
     df = pd.read_csv(args.data_path)
 
-    dataloader = DataLoader(RNAPredictDataset(df), batch_size=args.batch_size, shuffle=False)
+    dataloader = DataLoader(RNAPredictDataset(df, flip_ratio=args.flip_ratio), batch_size=args.batch_size, shuffle=False)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

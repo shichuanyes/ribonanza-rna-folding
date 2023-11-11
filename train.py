@@ -12,30 +12,30 @@ from model import RNAModel
 from utils import nucleotides
 
 
-def train_step(
+def train(
         model: nn.Module,
         optimizer: torch.optim.Optimizer,
         criterion: callable,
-
-        sequences: torch.Tensor,
-        reactivities: torch.Tensor,
-        experiment_types: torch.Tensor,
+        dataloader: DataLoader,
+        device: torch.device
 ):
-    mask = sequences.sum(dim=-1) == 0
+    model.train()
+    for sequences, reactivities, experiment_types in tqdm(dataloader, desc='Train', leave=False):
+        sequences, reactivities, experiment_types = sequences.to(device), reactivities.to(
+            device), experiment_types.to(device)
+        mask = sequences.sum(dim=-1) == 0
 
-    optimizer.zero_grad()
+        optimizer.zero_grad()
 
-    outputs = model(sequences, mask)
-    outputs = outputs[torch.arange(outputs.size(0)), :, experiment_types]
+        outputs = model(sequences, mask)
+        outputs = outputs[torch.arange(outputs.size(0)), :, experiment_types]
 
-    nan_mask = torch.isnan(reactivities)
+        nan_mask = torch.isnan(reactivities)
 
-    loss = criterion(outputs[~ (mask | nan_mask)], reactivities[~ (mask | nan_mask)])
-    loss = torch.mean(loss)
-    loss.backward()
-    optimizer.step()
-
-    return loss.item()
+        loss = criterion(outputs[~ (mask | nan_mask)], reactivities[~ (mask | nan_mask)])
+        loss = torch.mean(loss)
+        loss.backward()
+        optimizer.step()
 
 
 def validate(
@@ -80,6 +80,7 @@ if __name__ == '__main__':
     parser.add_argument('--dropout', type=float, default=0.1)
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--num_epochs', type=int, default=10)
+    parser.add_argument('--flip_ratio', type=float, default=0.5)
 
     args = parser.parse_args()
 
@@ -93,8 +94,8 @@ if __name__ == '__main__':
 
     train_df, val_df = train_test_split(df, test_size=0.2, random_state=283)
 
-    train_loader = DataLoader(RNADataset(train_df, fill_na=True), batch_size=args.batch_size, shuffle=True)
-    val_loader = DataLoader(RNADataset(val_df), batch_size=args.batch_size, shuffle=False)
+    train_loader = DataLoader(RNADataset(train_df, flip_ratio=args.flip_ratio, fill_na=True), batch_size=args.batch_size, shuffle=True)
+    val_loader = DataLoader(RNADataset(val_df, flip_ratio=args.flip_ratio), batch_size=args.batch_size, shuffle=False)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -115,18 +116,13 @@ if __name__ == '__main__':
     dataloader = train_loader
 
     for epoch in tqdm(range(args.num_epochs)):
-        model.train()
-        for sequences, reactivities, experiment_types in tqdm(dataloader, desc='Train', leave=False):
-            sequences, reactivities, experiment_types = sequences.to(device), reactivities.to(
-                device), experiment_types.to(device)
-            train_step(
-                model=model,
-                criterion=criterion,
-                optimizer=optimizer,
-                sequences=sequences,
-                reactivities=reactivities,
-                experiment_types=experiment_types
-            )
+        train(
+            model=model,
+            criterion=criterion,
+            optimizer=optimizer,
+            dataloader=train_loader,
+            device=device
+        )
 
         score = validate(
             model=model,
