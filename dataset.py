@@ -1,5 +1,6 @@
-from typing import List
+from typing import List, Optional
 
+import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
@@ -9,8 +10,36 @@ from torch.utils.data import Dataset
 from utils import str_to_tensor
 
 
+def flip(
+        df: pd.DataFrame,
+        columns: List[List],
+        flip_ratio: float,
+        seed: Optional[int]
+) -> np.ndarray:
+    rng = np.random.default_rng(seed=seed)
+    mask = rng.random(size=len(df)) > flip_ratio
+    idx = df.index[mask]
+
+    df.loc[idx, 'sequence'] = df.loc[idx, 'sequence'].str[::-1]
+
+    for cols in columns:
+        lengths = df.loc[idx, 'sequence'].str.len().to_numpy()
+        reactivities = df.loc[idx, cols].to_numpy()
+        for i in range(reactivities.shape[0]):
+            reactivities[i, :lengths[i]] = reactivities[i, :lengths[i]][::-1]
+        df.loc[idx, cols] = reactivities
+
+    return mask
+
+
 class RNADataset(Dataset):
-    def __init__(self, df: pd.DataFrame):
+
+    def __init__(
+            self,
+            df: pd.DataFrame,
+            flip_ratio: float = 0.5,
+            seed: int = 283
+    ):
         self.df = df
         self.reactivity_columns = [
             column for column in self.df.columns
@@ -20,6 +49,7 @@ class RNADataset(Dataset):
             'DMS_MaP': 0,
             '2A3_MaP': 1
         }
+        flip(df, [self.reactivity_columns], flip_ratio, seed)
 
     def __len__(self):
         return len(self.df)
@@ -55,12 +85,15 @@ class RNADataset(Dataset):
 
 
 class RNAPredictDataset(Dataset):
-    def __init__(self, df: pd.DataFrame):
+    def __init__(
+            self,
+            df: pd.DataFrame,
+            flip_ratio: float = 0.5,
+            seed: int = 283
+    ):
         self.df = df
         self.max_seq_length = df['sequence'].str.len().max()
-
-        if 'flip' not in self.df.columns:
-            self.df['flip'] = pd.Series([False for _ in range(len(self.df))])
+        self.flip = flip(df, [], flip_ratio, seed)
 
     def __len__(self):
         return len(self.df)
@@ -70,9 +103,7 @@ class RNAPredictDataset(Dataset):
         sequence = str_to_tensor(sequence)
         sequence = F.pad(sequence, (0, 0, 0, self.max_seq_length - sequence.size(0)))
 
-        flip = self.df['flip'].iloc[idx]
-
-        return sequence, flip
+        return sequence, self.flip[idx]
 
     def __getitems__(self, indices: List[int]):
         sequences = self.df['sequence'].iloc[indices]
@@ -80,6 +111,4 @@ class RNAPredictDataset(Dataset):
         sequences = pad_sequence(sequences, batch_first=True)
         sequences = F.pad(sequences, (0, 0, 0, self.max_seq_length - sequences.size(1)))
 
-        flips = self.df['flip'].iloc[indices]
-
-        return list(zip(sequences, flips))
+        return list(zip(sequences, self.flip[indices]))
