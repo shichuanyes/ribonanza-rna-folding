@@ -30,10 +30,8 @@ def train(
         outputs = model(sequences, mask)
         outputs = outputs[torch.arange(outputs.size(0)), :, experiment_types]
 
-        nan_mask = torch.isnan(reactivities)
-
-        loss = criterion(outputs[~ (mask | nan_mask)], reactivities[~ (mask | nan_mask)])
-        loss = torch.mean(loss)
+        loss = criterion(outputs, reactivities)
+        loss = torch.mean(loss[~ torch.isnan(loss)])
         loss.backward()
         optimizer.step()
 
@@ -96,8 +94,7 @@ if __name__ == '__main__':
 
     train_df, val_df = train_test_split(df, test_size=0.2, random_state=283)
 
-    train_loader = DataLoader(RNADataset(train_df, flip_ratio=args.flip_ratio, fill_na=True),
-                              batch_size=args.batch_size, shuffle=True)
+    train_loader = DataLoader(RNADataset(train_df, flip_ratio=args.flip_ratio, fill_na=False), batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(RNADataset(val_df, flip_ratio=args.flip_ratio), batch_size=args.batch_size, shuffle=False)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -114,7 +111,7 @@ if __name__ == '__main__':
     print(f"Started training on {device}. Current parameters:")
     print(args)
 
-    criterion = nn.MSELoss(reduction='none')
+    criterion = nn.L1Loss(reduction='none')
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
     dataloader = train_loader
 
