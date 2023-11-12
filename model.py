@@ -34,7 +34,14 @@ class RNAModel(nn.Module):
         self.conv = nn.Conv1d(embed_dim, d_model, kernel_size=kernel_size, padding=(kernel_size - 1) // 2)
         self.pe = PositionalEncoding(d_model=d_model, dropout=dropout)
         self.te = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, dropout=dropout, batch_first=True),
+            nn.TransformerEncoderLayer(
+                d_model=d_model,
+                nhead=nhead,
+                dropout=dropout,
+                activation=nn.GELU(),
+                batch_first=True,
+                norm_first=True,
+            ),
             num_layers=num_layers
         )
         self.linear = nn.Linear(d_model, 2)
