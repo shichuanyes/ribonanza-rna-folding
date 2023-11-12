@@ -29,8 +29,8 @@ class RNADataset(Dataset):
         df_DMS = df_DMS.iloc[split].reset_index(drop=True)
         df_2A3 = df_2A3.iloc[split].reset_index(drop=True)
 
-        if 'SN_filter' in df.columns:
-            mask = (df_DMS['SN_filter'].values > 0) & (df_2A3['SN_filter'].values > 0)
+        if 'signal_to_noise' in df.columns:
+            mask = (df_DMS['signal_to_noise'].values > 0.5) & (df_2A3['signal_to_noise'].values > 0.5)
             df_DMS = df_DMS.loc[mask].reset_index(drop=True)
             df_2A3 = df_2A3.loc[mask].reset_index(drop=True)
 
