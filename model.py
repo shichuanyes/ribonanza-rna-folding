@@ -4,6 +4,7 @@ import math
 import torch
 from torch import nn
 from torch.autograd import Variable
+from torch.nn import functional as F
 
 
 class PositionalEncoding(nn.Module):
@@ -30,7 +31,7 @@ class PositionalEncoding(nn.Module):
 class RNAModel(nn.Module):
     def __init__(self, embed_dim, d_model, nhead, num_layers, kernel_size, dropout):
         super().__init__()
-
+        self.embed_dim = embed_dim
         self.conv = nn.Conv1d(embed_dim, d_model, kernel_size=kernel_size, padding=(kernel_size - 1) // 2)
         self.pe = PositionalEncoding(d_model=d_model, dropout=dropout)
         self.te = nn.TransformerEncoder(
@@ -47,6 +48,8 @@ class RNAModel(nn.Module):
         self.linear = nn.Linear(d_model, 2)
 
     def forward(self, x, mask):
+        x = F.one_hot(x.long(), num_classes=self.embed_dim).float()
+        x[mask] = 0
         x = self.conv(x.transpose(-1, -2)).transpose(-1, -2)
         x = self.pe(x)
         x = self.te(x, src_key_padding_mask=mask)
