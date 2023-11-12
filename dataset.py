@@ -1,35 +1,10 @@
-from typing import List, Optional
-
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn.functional as F
-from torch.nn.utils.rnn import pad_sequence
+from sklearn.model_selection import KFold
 from torch.utils.data import Dataset
 
-from utils import str_to_tensor
-
-
-def flip(
-        df: pd.DataFrame,
-        columns: List[List],
-        flip_ratio: float,
-        seed: Optional[int]
-) -> np.ndarray:
-    rng = np.random.default_rng(seed=seed)
-    mask = rng.random(size=len(df)) > flip_ratio
-    idx = df.index[mask]
-
-    df.loc[idx, 'sequence'] = df.loc[idx, 'sequence'].str[::-1]
-
-    for cols in columns:
-        lengths = df.loc[idx, 'sequence'].str.len().to_numpy()
-        reactivities = df.loc[idx, cols].to_numpy()
-        for i in range(reactivities.shape[0]):
-            reactivities[i, :lengths[i]] = reactivities[i, :lengths[i]][::-1]
-        df.loc[idx, cols] = reactivities
-
-    return mask
+from utils import str_to_seq
 
 
 class RNADataset(Dataset):
@@ -37,84 +12,66 @@ class RNADataset(Dataset):
     def __init__(
             self,
             df: pd.DataFrame,
-            flip_ratio: float = 0.5,
-            fill_na: bool = False,
-            seed: int = 283
+            mode: str = 'train',
+            seed: int = 283,
+            fold: int = 0,
+            n_splits: int = 4,
+            seq_only: bool = False
     ):
-        self.df = df
-        self.reactivity_columns = [
-            column for column in self.df.columns
-            if not column.startswith('reactivity_error') and column.startswith('reactivity')
-        ]
-        self.experiment_mapping = {
-            'DMS_MaP': 0,
-            '2A3_MaP': 1
+        self.seq_only = seq_only
+
+        df_DMS = df.loc[df['experiment_type'] == 'DMS_MaP']
+        df_2A3 = df.loc[df['experiment_type'] == '2A3_MaP']
+
+        split = list(
+            KFold(n_splits=n_splits, random_state=seed, shuffle=True).split(df_DMS)
+        )[fold][0 if mode == 'train' else 1]
+        df_DMS = df_DMS.iloc[split].reset_index(drop=True)
+        df_2A3 = df_2A3.iloc[split].reset_index(drop=True)
+
+        if 'SN_filter' in df.columns:
+            mask = (df_DMS['SN_filter'].values > 0) & (df_2A3['SN_filter'].values > 0)
+            df_DMS = df_DMS.loc[mask].reset_index(drop=True)
+            df_2A3 = df_2A3.loc[mask].reset_index(drop=True)
+
+        self.seq = df_DMS['sequence'].values
+        self.len = df_DMS['sequence'].str.len().values
+
+        self.max_len = max(self.len)
+
+        if not self.seq_only:
+            react_cols = [
+                col for col in df.columns if not col.startswith('reactivity_error') and col.startswith('reactivity')
+            ]
+
+            self.react_DMS = df_DMS[react_cols].values
+            self.react_2A3 = df_2A3[react_cols].values
+
+    def __len__(self):
+        return len(self.seq)
+
+    def __getitem__(self, idx: int):
+        seq = self.seq[idx]
+        seq = str_to_seq(seq)
+        seq = np.pad(seq, (0, self.max_len - len(seq)))
+        seq = torch.from_numpy(seq)
+
+        mask = torch.zeros(self.max_len, dtype=torch.bool)
+        mask[self.len[idx]:] = True
+
+        if self.seq_only:
+            return {
+                'seq': seq,
+                'mask': mask
+            }
+
+        react = torch.from_numpy(np.stack(
+            [self.react_DMS[idx], self.react_2A3[idx]],
+            axis=-1
+        ))
+
+        return {
+            'seq': seq,
+            'react': react,
+            'mask': mask
         }
-
-        if fill_na:
-            for reactivity_column in self.reactivity_columns:
-                error_column = reactivity_column.replace('reactivity', 'reactivity_error')
-                self.df.loc[self.df[reactivity_column] < self.df[error_column] * 1.5, reactivity_column] = np.nan
-        flip(df, [self.reactivity_columns], flip_ratio, seed)
-
-    def __len__(self):
-        return len(self.df)
-
-    def __getitem__(self, idx: int):
-        sequence = self.df['sequence'].iloc[idx]
-        sequence = str_to_tensor(sequence)
-        sequence = F.pad(sequence, (0, 0, 0, len(self.reactivity_columns) - sequence.size(0)))
-
-        reactivity = self.df[self.reactivity_columns].iloc[idx].to_numpy()
-        reactivity = torch.FloatTensor(reactivity)
-        # reactivity = torch.nan_to_num(reactivity)
-
-        experiment_type = self.df['experiment_type'].iloc[idx]
-        experiment_type = self.experiment_mapping[experiment_type]
-
-        return sequence, reactivity, experiment_type
-
-    def __getitems__(self, indices: List[int]):
-        sequences = self.df['sequence'].iloc[indices]
-        sequences = [str_to_tensor(sequence) for sequence in sequences]
-        sequences = pad_sequence(sequences, batch_first=True)
-        sequences = F.pad(sequences, (0, 0, 0, len(self.reactivity_columns) - sequences.size(1)))
-
-        reactivities = self.df[self.reactivity_columns].iloc[indices].to_numpy()
-        reactivities = torch.FloatTensor(reactivities)
-        # reactivities = torch.nan_to_num(reactivities)
-
-        experiment_types = self.df['experiment_type'].iloc[indices]
-        experiment_types = experiment_types.map(self.experiment_mapping).to_numpy()
-
-        return list(zip(sequences, reactivities, experiment_types))
-
-
-class RNAPredictDataset(Dataset):
-    def __init__(
-            self,
-            df: pd.DataFrame,
-            flip_ratio: float = 0.5,
-            seed: int = 283
-    ):
-        self.df = df
-        self.max_seq_length = df['sequence'].str.len().max()
-        self.flip = flip(df, [], flip_ratio, seed)
-
-    def __len__(self):
-        return len(self.df)
-
-    def __getitem__(self, idx: int):
-        sequence = self.df['sequence'].iloc[idx]
-        sequence = str_to_tensor(sequence)
-        sequence = F.pad(sequence, (0, 0, 0, self.max_seq_length - sequence.size(0)))
-
-        return sequence, self.flip[idx]
-
-    def __getitems__(self, indices: List[int]):
-        sequences = self.df['sequence'].iloc[indices]
-        sequences = [str_to_tensor(sequence) for sequence in sequences]
-        sequences = pad_sequence(sequences, batch_first=True)
-        sequences = F.pad(sequences, (0, 0, 0, self.max_seq_length - sequences.size(1)))
-
-        return list(zip(sequences, self.flip[indices]))

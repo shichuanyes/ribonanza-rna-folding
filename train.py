@@ -20,17 +20,20 @@ def train(
         device: torch.device
 ):
     model.train()
-    for sequences, reactivities, experiment_types in tqdm(dataloader, desc='Train', leave=False):
-        sequences, reactivities, experiment_types = sequences.to(device), reactivities.to(
-            device), experiment_types.to(device)
-        mask = sequences.sum(dim=-1) == 0
+    for batch in tqdm(dataloader, desc='Train', leave=False):
+        sequences = batch['seq'].to(device)
+        reactivities = batch['react'].to(device)
+        mask = batch['mask'].to(device)
+
+        max_len = (~ mask).sum(-1).max()
+        sequences = sequences[:, :max_len]
+        reactivities = reactivities[:, :max_len]
+        mask = mask[:, :max_len]
 
         optimizer.zero_grad()
 
         outputs = model(sequences, mask)
-        outputs = outputs[torch.arange(outputs.size(0)), :, experiment_types]
-
-        loss = criterion(outputs, reactivities)
+        loss = criterion(outputs[~ mask], reactivities[~ mask].clip(0, 1))
         loss = torch.mean(loss[~ torch.isnan(loss)])
         loss.backward()
         optimizer.step()
@@ -44,23 +47,26 @@ def validate(
 ) -> float:
     model.eval()
     with torch.inference_mode():
-        loss = 0.0
+        total_loss = 0.0
         count = 0
-        for sequences, reactivities, experiment_types in tqdm(dataloader, desc='Validation', leave=False):
-            sequences, reactivities, experiment_types = sequences.to(device), reactivities.to(
-                device), experiment_types.to(device)
+        for batch in tqdm(dataloader, desc='Validation', leave=False):
+            sequences = batch['seq'].to(device)
+            reactivities = batch['react'].to(device)
+            mask = batch['mask'].to(device)
 
-            mask = sequences.sum(dim=-1) == 0
+            max_len = (~ mask).sum(-1).max()
+            sequences = sequences[:, :max_len]
+            reactivities = reactivities[:, :max_len]
+            mask = mask[:, :max_len]
 
             count += torch.sum(~ mask)
 
             outputs = model(sequences, mask)
-            outputs = outputs[torch.arange(outputs.size(0)), :, experiment_types]
             outputs = torch.clamp(outputs, min=0.0, max=1.0)
+            loss = criterion(outputs[~ mask], reactivities[~ mask])
+            total_loss += torch.sum(loss[~ torch.isnan(loss)])
 
-            loss += torch.nansum(criterion(outputs, reactivities)[~ mask])
-
-    return loss / count
+    return total_loss / (count * 2)
 
 
 if __name__ == '__main__':
@@ -79,23 +85,19 @@ if __name__ == '__main__':
     parser.add_argument('--dropout', type=float, default=0.1)
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--num_epochs', type=int, default=10)
-    parser.add_argument('--flip_ratio', type=float, default=0.5)
 
     args = parser.parse_args()
 
     assert args.kernel_size % 2 == 1
     assert args.d_model % args.nhead == 0
     assert 0.0 <= args.dropout < 1.0
-    assert 0.0 <= args.flip_ratio <= 1.0
 
     print("Reading training set...")
     df = pd.read_csv(args.train_path)
     print()
 
-    train_df, val_df = train_test_split(df, test_size=0.2, random_state=283)
-
-    train_loader = DataLoader(RNADataset(train_df, flip_ratio=args.flip_ratio, fill_na=False), batch_size=args.batch_size, shuffle=True)
-    val_loader = DataLoader(RNADataset(val_df, flip_ratio=args.flip_ratio), batch_size=args.batch_size, shuffle=False)
+    train_loader = DataLoader(RNADataset(df), batch_size=args.batch_size, shuffle=True)
+    val_loader = DataLoader(RNADataset(df, mode='test'), batch_size=args.batch_size, shuffle=False)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
