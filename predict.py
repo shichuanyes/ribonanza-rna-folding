@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from dataset import RNAPredictDataset
+from dataset import RNADataset
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -27,7 +27,7 @@ if __name__ == '__main__':
     print("Reading dataset...")
     df = pd.read_csv(args.data_path)
 
-    dataloader = DataLoader(RNAPredictDataset(df, flip_ratio=args.flip_ratio), batch_size=args.batch_size, shuffle=False)
+    dataloader = DataLoader(RNADataset(df, mode='predict'), batch_size=args.batch_size, shuffle=False)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -39,18 +39,14 @@ if __name__ == '__main__':
     model.eval()
     with torch.inference_mode():
         curr = 0
-        for sequences, flips in tqdm(dataloader):
-            sequences = sequences.to(device)
-
-            mask = sequences.sum(dim=-1) == 0
+        for batch in tqdm(dataloader):
+            sequences = batch['seq'].to(device)
+            mask = batch['mask'].to(device)
 
             outputs = model(sequences, mask)
 
             outputs = outputs.cpu().numpy()
             mask = mask.cpu().numpy()
-
-            outputs[flips] = outputs[flips][:, ::-1]
-            mask[flips] = mask[flips][:, ::-1]
 
             outputs = outputs[~ mask]
             predictions[curr:curr + outputs.shape[0], :] = outputs

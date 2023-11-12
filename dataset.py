@@ -16,9 +16,14 @@ class RNADataset(Dataset):
             seed: int = 283,
             fold: int = 0,
             n_splits: int = 4,
-            seq_only: bool = False
     ):
-        self.seq_only = seq_only
+        self.mode = mode
+
+        if mode == 'predict':
+            self.seq = df['sequence'].values
+            self.len = df['sequence'].str.len().values
+            self.max_len = max(self.len)
+            return
 
         df_DMS = df.loc[df['experiment_type'] == 'DMS_MaP']
         df_2A3 = df.loc[df['experiment_type'] == '2A3_MaP']
@@ -36,16 +41,14 @@ class RNADataset(Dataset):
 
         self.seq = df_DMS['sequence'].values
         self.len = df_DMS['sequence'].str.len().values
-
         self.max_len = max(self.len)
 
-        if not self.seq_only:
-            react_cols = [
-                col for col in df.columns if not col.startswith('reactivity_error') and col.startswith('reactivity')
-            ]
+        react_cols = [
+            col for col in df.columns if not col.startswith('reactivity_error') and col.startswith('reactivity')
+        ]
 
-            self.react_DMS = df_DMS[react_cols].values
-            self.react_2A3 = df_2A3[react_cols].values
+        self.react_DMS = df_DMS[react_cols].values
+        self.react_2A3 = df_2A3[react_cols].values
 
     def __len__(self):
         return len(self.seq)
@@ -59,7 +62,7 @@ class RNADataset(Dataset):
         mask = torch.zeros(self.max_len, dtype=torch.bool)
         mask[self.len[idx]:] = True
 
-        if self.seq_only:
+        if self.mode == 'predict':
             return {
                 'seq': seq,
                 'mask': mask
