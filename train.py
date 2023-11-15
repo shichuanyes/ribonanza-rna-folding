@@ -2,7 +2,6 @@ import argparse
 
 import pandas as pd
 import torch
-from sklearn.model_selection import train_test_split
 from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -83,6 +82,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--kernel_size', type=int, default=3)
     parser.add_argument('--dropout', type=float, default=0.1)
+    parser.add_argument('--perturb', type=float, default=0.1)
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--num_epochs', type=int, default=10)
 
@@ -96,7 +96,9 @@ if __name__ == '__main__':
     df = pd.read_csv(args.train_path)
     print()
 
-    train_loader = DataLoader(RNADataset(df), batch_size=args.batch_size, shuffle=True)
+    train_ds = RNADataset(df)
+
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(RNADataset(df, mode='test'), batch_size=args.batch_size, shuffle=False)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -115,9 +117,10 @@ if __name__ == '__main__':
 
     criterion = nn.L1Loss(reduction='none')
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
-    dataloader = train_loader
 
     for epoch in tqdm(range(args.num_epochs)):
+        train_ds.perturb(args.perturb)
+
         train(
             model=model,
             criterion=criterion,

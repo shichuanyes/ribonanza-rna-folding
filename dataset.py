@@ -15,9 +15,10 @@ class RNADataset(Dataset):
             mode: str = 'train',
             seed: int = 283,
             fold: int = 0,
-            n_splits: int = 4,
+            n_splits: int = 4
     ):
         self.mode = mode
+        self.rng = np.random.default_rng(seed)
 
         if mode == 'predict':
             self.seq = df['sequence'].values
@@ -46,9 +47,15 @@ class RNADataset(Dataset):
         react_cols = [
             col for col in df.columns if not col.startswith('reactivity_error') and col.startswith('reactivity')
         ]
+        error_cols = [
+            col for col in df.columns if col.startswith('reactivity_error')
+        ]
 
         self.react_DMS = df_DMS[react_cols].values
         self.react_2A3 = df_2A3[react_cols].values
+
+        self.error_DMS = df_DMS[error_cols].values
+        self.error_2A3 = df_2A3[error_cols].values
 
     def __len__(self):
         return len(self.seq)
@@ -69,7 +76,10 @@ class RNADataset(Dataset):
             }
 
         react = torch.from_numpy(np.stack(
-            [self.react_DMS[idx], self.react_2A3[idx]],
+            [
+                self.react_DMS[idx],
+                self.react_2A3[idx]
+            ],
             axis=-1
         ))
 
@@ -78,3 +88,7 @@ class RNADataset(Dataset):
             'react': react,
             'mask': mask
         }
+
+    def perturb(self, perturb: float):
+        self.react_DMS = self.rng.normal(loc=self.react_DMS, scale=perturb * self.error_DMS)
+        self.react_2A3 = self.rng.normal(loc=self.react_2A3, scale=perturb * self.error_2A3)
