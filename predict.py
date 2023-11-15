@@ -43,7 +43,8 @@ if __name__ == '__main__':
             sequences = batch['seq'].to(device)
             mask = batch['mask'].to(device)
 
-            outputs = model(sequences, mask)
+            with torch.cuda.amp.autocast():
+                outputs = model(sequences, mask)
 
             outputs = outputs.cpu().numpy()
             mask = mask.cpu().numpy()

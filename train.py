@@ -16,7 +16,8 @@ def train(
         optimizer: torch.optim.Optimizer,
         criterion: callable,
         dataloader: DataLoader,
-        device: torch.device
+        device: torch.device,
+        scaler
 ):
     model.train()
     for batch in tqdm(dataloader, desc='Train', leave=False):
@@ -30,12 +31,14 @@ def train(
         mask = mask[:, :max_len]
 
         optimizer.zero_grad()
+        with torch.cuda.amp.autocast():
+            outputs = model(sequences, mask)
+            loss = criterion(outputs[~ mask], reactivities[~ mask].clip(0, 1))
+            loss = torch.mean(loss[~ torch.isnan(loss)])
 
-        outputs = model(sequences, mask)
-        loss = criterion(outputs[~ mask], reactivities[~ mask].clip(0, 1))
-        loss = torch.mean(loss[~ torch.isnan(loss)])
-        loss.backward()
-        optimizer.step()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
 
 
 def validate(
@@ -60,10 +63,11 @@ def validate(
 
             count += torch.sum(~ mask)
 
-            outputs = model(sequences, mask)
-            outputs = torch.clamp(outputs, min=0.0, max=1.0)
-            loss = criterion(outputs[~ mask], reactivities[~ mask])
-            total_loss += torch.sum(loss[~ torch.isnan(loss)])
+            with torch.cuda.amp.autocast():
+                outputs = model(sequences, mask)
+                outputs = torch.clamp(outputs, min=0.0, max=1.0)
+                loss = criterion(outputs[~ mask], reactivities[~ mask])
+                total_loss += torch.sum(loss[~ torch.isnan(loss)])
 
     return total_loss / (count * 2)
 
@@ -116,7 +120,9 @@ if __name__ == '__main__':
     print(args)
 
     criterion = nn.L1Loss(reduction='none')
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)\
+
+    scaler = torch.cuda.amp.GradScaler()
 
     for epoch in tqdm(range(args.num_epochs)):
         train_ds.perturb(args.perturb)
@@ -126,7 +132,8 @@ if __name__ == '__main__':
             criterion=criterion,
             optimizer=optimizer,
             dataloader=train_loader,
-            device=device
+            device=device,
+            scaler=scaler
         )
 
         score = validate(
