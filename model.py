@@ -38,6 +38,7 @@ class RNAModel(nn.Module):
             nn.TransformerEncoderLayer(
                 d_model=d_model,
                 nhead=nhead,
+                dim_feedforward=d_model * 4,
                 dropout=dropout,
                 activation=nn.GELU(),
                 batch_first=True,
