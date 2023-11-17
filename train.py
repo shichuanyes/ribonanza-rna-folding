@@ -148,6 +148,7 @@ if __name__ == '__main__':
         print(f"Epoch: {epoch + 1} of {args.num_epochs}: Validation MAE={score}")
 
         if score < best:
+            best = score
             torch.save(model, args.save_path)
 
         print(f"Best val score={best}")
