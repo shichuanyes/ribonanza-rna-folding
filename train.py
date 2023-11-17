@@ -124,6 +124,8 @@ if __name__ == '__main__':
 
     scaler = torch.cuda.amp.GradScaler()
 
+    best = 1.0
+
     for epoch in tqdm(range(args.num_epochs)):
         train_ds.perturb(args.perturb)
 
@@ -145,7 +147,7 @@ if __name__ == '__main__':
         print()
         print(f"Epoch: {epoch + 1} of {args.num_epochs}: Validation MAE={score}")
 
-    print()
-    print("Saving model...")
-    torch.save(model, args.save_path)
-    print(f"Model saved to {args.save_path}")
+        if score < best:
+            torch.save(model, args.save_path)
+
+        print(f"Best val score={best}")
