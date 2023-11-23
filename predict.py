@@ -43,14 +43,23 @@ if __name__ == '__main__':
             sequences = batch['seq'].to(device)
             mask = batch['mask'].to(device)
 
+            sequences_flip = torch.zeros_like(sequences)
+            for i, sequence in enumerate(sequences):
+                sequences_flip[i, :torch.sum(~ mask[i])] = torch.flip(sequence[~ mask[i]], dims=(0,))
+            sequences_flip = torch.flip(sequences_flip, dims=(0,))
+            mask_flip = torch.flip(mask, dims=(0,))
+
             with torch.cuda.amp.autocast():
                 outputs = model(sequences, mask)
-
-            outputs = outputs.cpu().numpy()
-            mask = mask.cpu().numpy()
+                outputs_flip = model(sequences_flip, mask_flip)
 
             outputs = outputs[~ mask]
-            predictions[curr:curr + outputs.shape[0], :] = outputs
+            outputs_flip = outputs_flip[~ mask_flip]
+
+            outputs = outputs.cpu().numpy()
+            outputs_flip = outputs_flip.cpu().numpy()
+
+            predictions[curr:curr + outputs.shape[0], :] = (outputs + np.flip(outputs_flip, axis=0)) / 2
 
             curr += outputs.shape[0]
 
