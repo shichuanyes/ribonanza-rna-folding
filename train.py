@@ -3,6 +3,8 @@ import argparse
 import pandas as pd
 import torch
 from torch import nn
+from torch.optim import Optimizer
+from torch.optim.lr_scheduler import StepLR, LRScheduler
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -72,6 +74,21 @@ def validate(
     return total_loss / (count * 2)
 
 
+class WarmUpLR(StepLR):
+    def __init__(self, optimizer: Optimizer, warm_up_epochs: int, step_size: int, gamma: float = 0.1, last_epoch: int = -1):
+        self.warm_up_epochs = warm_up_epochs
+        super(WarmUpLR, self).__init__(optimizer, step_size=step_size, gamma=gamma, last_epoch=last_epoch)
+
+    def get_lr(self):
+        if self.last_epoch < self.warm_up_epochs:
+            # Warm-up phase
+            alpha = (self.last_epoch + 1) / self.warm_up_epochs
+            return [base_lr * alpha for base_lr in self.base_lrs]
+        else:
+            # Original scheduler phase
+            return super(WarmUpLR, self).get_lr()
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         prog='RNATraining',
@@ -90,6 +107,9 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--num_epochs', type=int, default=10)
     parser.add_argument('--sn_threshold', type=float, default=0.5)
+    parser.add_argument('--warm_up_epochs', type=int, default=3)
+    parser.add_argument('--step_size', type=int, default=20)
+    parser.add_argument('--gamma', type=float, default=0.5)
 
     args = parser.parse_args()
 
@@ -122,7 +142,8 @@ if __name__ == '__main__':
     print(args)
 
     criterion = nn.L1Loss(reduction='none')
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)\
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    scheduler = WarmUpLR(optimizer, warm_up_epochs=args.warm_up_epochs, step_size=args.step_size, gamma=args.gamma)
 
     scaler = torch.cuda.amp.GradScaler()
 
@@ -130,6 +151,8 @@ if __name__ == '__main__':
 
     for epoch in tqdm(range(args.num_epochs)):
         train_ds.perturb(args.perturb)
+
+        print(scheduler.get_lr())
 
         train(
             model=model,
@@ -148,6 +171,8 @@ if __name__ == '__main__':
         )
         print()
         print(f"Epoch: {epoch + 1} of {args.num_epochs}: Validation MAE={score}")
+
+        scheduler.step()
 
         if score < best:
             best = score
