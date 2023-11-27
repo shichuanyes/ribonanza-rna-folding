@@ -15,7 +15,8 @@ class RNADataset(Dataset):
             mode: str = 'train',
             seed: int = 283,
             fold: int = 0,
-            n_splits: int = 4
+            n_splits: int = 4,
+            sn_threshold: float = 0.5
     ):
         self.mode = mode
         self.rng = np.random.default_rng(seed)
@@ -36,7 +37,7 @@ class RNADataset(Dataset):
         df_2A3 = df_2A3.iloc[split].reset_index(drop=True)
 
         if 'signal_to_noise' in df.columns:
-            mask = (df_DMS['signal_to_noise'].values > 0.5) & (df_2A3['signal_to_noise'].values > 0.5)
+            mask = (df_DMS['signal_to_noise'].values > sn_threshold) & (df_2A3['signal_to_noise'].values > sn_threshold)
             df_DMS = df_DMS.loc[mask].reset_index(drop=True)
             df_2A3 = df_2A3.loc[mask].reset_index(drop=True)
 

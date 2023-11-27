@@ -89,21 +89,23 @@ if __name__ == '__main__':
     parser.add_argument('--perturb', type=float, default=0.1)
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--num_epochs', type=int, default=10)
+    parser.add_argument('--sn_threshold', type=float, default=0.5)
 
     args = parser.parse_args()
 
     assert args.kernel_size % 2 == 1
     assert args.d_model % args.nhead == 0
     assert 0.0 <= args.dropout < 1.0
+    assert 0.0 <= args.sn_threshold < 1.0
 
     print("Reading training set...")
     df = pd.read_csv(args.train_path)
     print()
 
-    train_ds = RNADataset(df)
+    train_ds = RNADataset(df, sn_threshold=args.sn_threshold)
 
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
-    val_loader = DataLoader(RNADataset(df, mode='test'), batch_size=args.batch_size, shuffle=False)
+    val_loader = DataLoader(RNADataset(df, mode='test', sn_threshold=0.5), batch_size=args.batch_size, shuffle=False)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
