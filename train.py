@@ -152,8 +152,6 @@ if __name__ == '__main__':
     for epoch in tqdm(range(args.num_epochs)):
         train_ds.perturb(args.perturb)
 
-        print(scheduler.get_lr())
-
         train(
             model=model,
             criterion=criterion,
